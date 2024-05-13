@@ -23,12 +23,5 @@ setup(
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
-        "Topic :: Internet :: WWW/HTTP :: ASGI",
-        "Topic :: Internet :: WWW/HTTP :: ASGI :: Middleware",
-        "Topic :: Internet :: WWW/HTTP :: ASGI :: Server",
-        "Topic :: Internet :: WWW/HTTP :: ASGI :: Application",
-        "Topic :: Internet :: WWW/HTTP :: ASGI :: Server",
-        "Topic :: Internet :: WWW/HTTP :: ASGI :: Middleware",
-        "Topic :: Internet :: WWW/HTTP :: ASGI :: Application",
     ]
 ) 
