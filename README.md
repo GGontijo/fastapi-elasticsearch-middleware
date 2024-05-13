@@ -66,7 +66,7 @@ Before contributing, please ensure you have the following:
 1. **Fork the Repository**: Start by forking the repository to your GitHub account.
 2. **Clone the Repository**: Clone your fork to your local machine.
    ```bash
-   git clone https://github.com/your-username/repository-name.git
+   git clone https://github.com/GGontijo/fastapi-elasticsearch-middleware
    cd repository-name
    ```
 3. **Install Dependencies**: Install the required dependencies.
