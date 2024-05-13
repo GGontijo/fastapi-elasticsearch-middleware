@@ -40,7 +40,7 @@ Integrate the middleware into your FastAPI application like this:
 
 ```python
 from fastapi import FastAPI
-from my_middleware import ElasticsearchLoggerMiddleware
+from fastapi_elasticsearch_middleware.elasticsearch_middleware import ElasticsearchLoggerMiddleware
 
 app = FastAPI()
 app.add_middleware(ElasticsearchLoggerMiddleware, config=config)
