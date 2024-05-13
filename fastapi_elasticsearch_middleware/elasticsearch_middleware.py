@@ -93,7 +93,7 @@ class ElasticsearchLoggerMiddleware:
             start_time = time.time()
             
             log_data = {
-                "@timestamp": datetime.now().replace(tzinfo=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+                "@timestamp": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
                 "environment": self.environment, 
                 "method": request.method,
                 "path": request.url.path,
