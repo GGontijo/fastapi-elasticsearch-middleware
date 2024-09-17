@@ -105,6 +105,7 @@ class ElasticsearchLoggerMiddleware:
             start_time = time.time()
 
             async def intercept_receive():
+                nonlocal log_data
                 message = await receive()
 
                 more_body = message.get("more_body", False)
