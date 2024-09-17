@@ -134,7 +134,6 @@ class ElasticsearchLoggerMiddleware:
     def log_to_elasticsearch(self, log_data) -> None:
         try:
             self.elasticsearch_client.index(index=self.index, body=log_data)
-            log_data.clear()
         except Exception as e:
             logging.error(f"Failed to log to Elasticsearch: {str(e)}")
 
