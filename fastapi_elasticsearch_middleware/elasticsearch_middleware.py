@@ -52,10 +52,10 @@ class ElasticsearchLoggerMiddleware:
 
             async def intercept_send(response):
                 nonlocal log_data
-                if response['type'] == 'http.response.body' and "response" not in log_data.keys(): # Streaming response, we don't want to log this
+                if response['type'] == 'http.response.body' and not log_data.get("response"): # Streaming response, we don't want to log this
                     await send(response)
                     return 
-                if response['type'] == 'http.response.body' and "response" in log_data.keys(): # Response part
+                if response['type'] == 'http.response.body' and log_data.get("response"): # Response part
                     
                     # Finishes telemetry
                     end_time = time.time()
@@ -134,6 +134,7 @@ class ElasticsearchLoggerMiddleware:
     def log_to_elasticsearch(self, log_data) -> None:
         try:
             self.elasticsearch_client.index(index=self.index, body=log_data)
+            log_data["response"] = {}
         except Exception as e:
             logging.error(f"Failed to log to Elasticsearch: {str(e)}")
 
