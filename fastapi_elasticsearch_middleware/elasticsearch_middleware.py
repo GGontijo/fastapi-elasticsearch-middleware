@@ -74,6 +74,7 @@ class ElasticsearchLoggerMiddleware:
                         log_data["response"]["body"] = str(response.get('body')) if 'body' in response.keys() else None
 
                     self.log_to_elasticsearch(log_data)
+                    log_data.clear()
 
                 if response['type'] == 'http.response.start': # Request part
                     
@@ -134,7 +135,6 @@ class ElasticsearchLoggerMiddleware:
     def log_to_elasticsearch(self, log_data) -> None:
         try:
             self.elasticsearch_client.index(index=self.index, body=log_data)
-            log_data["response"] = {}
         except Exception as e:
             logging.error(f"Failed to log to Elasticsearch: {str(e)}")
 
