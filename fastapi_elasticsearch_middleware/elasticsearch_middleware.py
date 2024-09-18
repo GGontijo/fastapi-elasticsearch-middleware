@@ -74,7 +74,7 @@ class ElasticsearchLoggerMiddleware:
                         log_data["response"]["body"] = str(response.get('body')) if 'body' in response.keys() else None
 
                     self.log_to_elasticsearch(log_data)
-                    log_data.clear()
+                    log_data["response"] = {}
 
                 if response['type'] == 'http.response.start': # Request part
                     
