@@ -1,19 +1,27 @@
 from setuptools import setup, find_packages
-  
-setup( 
-    name='fastapi_elasticsearch_middleware', 
-    version='1.1.3', 
-    url='https://github.com/GGontijo/fastapi-elasticsearch-middleware.git',
-    description='Elasticsearch Logger Middleware for FastAPI',
-    long_description_content_type='text/markdown',
-    long_description=open('README.md').read(),
-    author='Gabriel Gontijo', 
-    author_email='gabrieldercilio08@gmail.com', 
-    packages=find_packages(), 
-    keywords=['python', 'middleware', 'fastapi', 'elasticsearch', 'kibana', 'logstash', 'fastapi-middleware'],
-    install_requires=[ 
-        'fastapi', 
-        'elasticsearch', 
+
+setup(
+    name="fastapi_elasticsearch_middleware",
+    version="1.1.4",
+    url="https://github.com/GGontijo/fastapi-elasticsearch-middleware.git",
+    description="Elasticsearch Logger Middleware for FastAPI",
+    long_description_content_type="text/markdown",
+    long_description=open("README.md").read(),
+    author="Gabriel Gontijo",
+    author_email="gabrieldercilio08@gmail.com",
+    packages=find_packages(),
+    keywords=[
+        "python",
+        "middleware",
+        "fastapi",
+        "elasticsearch",
+        "kibana",
+        "logstash",
+        "fastapi-middleware",
+    ],
+    install_requires=[
+        "fastapi",
+        "elasticsearch",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -23,5 +31,5 @@ setup(
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
-    ]
-) 
+    ],
+)
