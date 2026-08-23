@@ -2,11 +2,12 @@ import json
 import logging
 import time
 import traceback
-from fastapi import Request
 from datetime import datetime, timezone
+
+from elasticsearch import Elasticsearch
+from fastapi import Request
 from fastapi.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
-from elasticsearch import Elasticsearch
 
 
 class LogLevelEnum:
@@ -164,14 +165,22 @@ class ElasticsearchLoggerMiddleware:
 
                     message["body"] = body
                     request_body = ""
+                    content_type = (
+                        request.headers.get("content-type", "")
+                        .partition(";")[0]
+                        .strip()
+                        .lower()
+                    )
 
-                    if (
-                        len(body) > 0
-                        and request.headers.get("content-type") == "application/json"
-                    ):
-                        request_body = json.loads(body.decode("utf-8"))
-                        request_body = self.limit_string_length(request_body)
-                        request_body = json.dumps(request_body, ensure_ascii=False)
+                    if len(body) > 0:
+                        if content_type == "application/json":
+                            request_body = json.loads(body.decode("utf-8"))
+                            request_body = self.limit_string_length(request_body)
+                            request_body = json.dumps(request_body, ensure_ascii=False)
+
+                        elif content_type == "application/x-www-form-urlencoded":
+                            request_body = body.decode("utf-8")
+                            request_body = self.limit_string_length(request_body)
 
                     log_data["request"]["body"] = request_body
                 except Exception as exc:
