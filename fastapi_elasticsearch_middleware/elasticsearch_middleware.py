@@ -2,6 +2,7 @@ import json
 import logging
 import time
 import traceback
+import uuid
 from datetime import datetime, timezone
 
 from elasticsearch import Elasticsearch
@@ -103,6 +104,12 @@ class ElasticsearchLoggerMiddleware:
                         log_data["response"] = {}
 
                     if response["type"] == "http.response.start":  # Request part
+                        response_headers_list = list(response.get("headers", []))
+                        response_headers_list.append(
+                            (b"x-request-id", log_data["request_id"].encode())
+                        )
+                        response["headers"] = response_headers_list
+
                         request_headers = (
                             dict(request.headers)
                             if "headers" in request.keys()
@@ -129,6 +136,10 @@ class ElasticsearchLoggerMiddleware:
                             request_query_parameters
                         )
                         log_data["response"]["headers"] = response_headers
+
+                        _route = scope.get("route")
+                        if _route is not None:
+                            log_data["operation_id"] = _route.operation_id
                 except Exception as exc:
                     logging.error(
                         "Failed to intercept response: %s", exc, exc_info=True
@@ -145,6 +156,7 @@ class ElasticsearchLoggerMiddleware:
                 "environment": self.environment,
                 "method": request.method,
                 "path": request.url.path,
+                "request_id": str(uuid.uuid4()),
                 "request": {},
                 "response": {},
             }
@@ -213,6 +225,10 @@ class ElasticsearchLoggerMiddleware:
                             if len(request.query_params._list) > 0
                             else None
                         )
+
+                    _route = scope.get("route")
+                    if _route is not None:
+                        log_data["operation_id"] = _route.operation_id
 
                     # Send the error log to Elasticsearch
                     self.log_to_elasticsearch(log_data)
