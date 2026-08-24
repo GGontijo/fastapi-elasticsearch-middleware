@@ -137,9 +137,13 @@ class ElasticsearchLoggerMiddleware:
                         )
                         log_data["response"]["headers"] = response_headers
 
-                        _route = scope.get("route")
+                        _route = request.scope.get("route")
                         if _route is not None:
-                            log_data["operation_id"] = _route.operation_id
+                            log_data["operation_id"] = (
+                                _route.operation_id
+                                if _route.operation_id
+                                else _route.name
+                            )
                 except Exception as exc:
                     logging.error(
                         "Failed to intercept response: %s", exc, exc_info=True
@@ -226,9 +230,11 @@ class ElasticsearchLoggerMiddleware:
                             else None
                         )
 
-                    _route = scope.get("route")
+                    _route = request.scope.get("route")
                     if _route is not None:
-                        log_data["operation_id"] = _route.operation_id
+                        log_data["operation_id"] = (
+                            _route.operation_id if _route.operation_id else _route.name
+                        )
 
                     # Send the error log to Elasticsearch
                     self.log_to_elasticsearch(log_data)
