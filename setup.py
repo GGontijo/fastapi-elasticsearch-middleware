@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="fastapi_elasticsearch_middleware",
-    version="1.1.6",
+    version="1.1.7",
     url="https://github.com/GGontijo/fastapi-elasticsearch-middleware.git",
     description="Elasticsearch Logger Middleware for FastAPI",
     long_description_content_type="text/markdown",
