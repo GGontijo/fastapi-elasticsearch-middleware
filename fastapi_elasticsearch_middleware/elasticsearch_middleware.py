@@ -106,7 +106,7 @@ class ElasticsearchLoggerMiddleware:
                     if response["type"] == "http.response.start":  # Request part
                         response_headers_list = list(response.get("headers", []))
                         response_headers_list.append(
-                            (b"x-request-id", log_data["request_id"].encode())
+                            (b"request-id", log_data["request_id"].encode())
                         )
                         response["headers"] = response_headers_list
 
