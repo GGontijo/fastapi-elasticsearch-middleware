@@ -1,10 +1,10 @@
-import datetime
 import json
 import logging
 import math
 import time
 import traceback
 import uuid
+from datetime import datetime, timezone
 from enum import Enum
 
 from elasticsearch import ConnectionTimeout, Elasticsearch
@@ -191,7 +191,7 @@ class ElasticsearchLoggerMiddleware:
             start_time = time.time()
 
             log_data = {
-                "@timestamp": datetime.now(tz=datetime.UTC).strftime(
+                "@timestamp": datetime.now(tz=timezone.UTC).strftime(
                     "%Y-%m-%dT%H:%M:%S"
                 ),
                 "environment": self.environment,
