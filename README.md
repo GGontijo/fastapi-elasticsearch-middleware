@@ -24,13 +24,16 @@ Configure the middleware by creating a `config` dictionary in your FastAPI appli
 
 ```python
 config = {
-    'url': 'http://localhost:9200',
-    'user': 'elasticsearch_user',
-    'password': 'password',
-    'index': 'my_app_logs',
-    'environment': 'development',
-    'limit': True,
-    'debug': False
+    "url": "http://localhost:9200",
+    "user": "elasticsearch_user",
+    "password": "password",
+    "index": "my_app_logs",
+    "environment": "development",
+    "limit": True,
+    "debug": False,
+    "request_timeout": 1,
+    "timeout_max_retries": 3,
+    "timeout_wait_seconds": 60,
 }
 ```
 
@@ -40,7 +43,9 @@ Integrate the middleware into your FastAPI application like this:
 
 ```python
 from fastapi import FastAPI
-from fastapi_elasticsearch_middleware.elasticsearch_middleware import ElasticsearchLoggerMiddleware
+from fastapi_elasticsearch_middleware.elasticsearch_middleware import (
+    ElasticsearchLoggerMiddleware,
+)
 
 app = FastAPI()
 app.add_middleware(ElasticsearchLoggerMiddleware, config=config)
@@ -49,6 +54,33 @@ app.add_middleware(ElasticsearchLoggerMiddleware, config=config)
 ### How It Works
 
 The middleware captures each HTTP request, processes it, and sends log data to your Elasticsearch server based on the configured parameters. It includes detailed logs of request headers, body data, and response metrics.
+
+### Elasticsearch timeouts
+
+By default, each log submission uses a one-second client request timeout with
+automatic client retries disabled. After three consecutive submission timeouts,
+the middleware pauses Elasticsearch logging for 60 seconds. Configure these
+optional settings in `config`:
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `request_timeout` | `1` | Client request timeout in seconds; finite positive number. |
+| `timeout_max_retries` | `3` | Consecutive submission timeouts before pausing; positive integer. This does not retry the same log. |
+| `timeout_wait_seconds` | `60` | Pause duration in seconds; finite positive number. |
+
+Invalid values raise `ValueError` when the middleware is initialized.
+Logs received during this pause are
+discarded; they are not queued or retried.
+
+The first log after the pause probes Elasticsearch. A successful submission resets
+the timeout counter. Another timeout immediately starts a new pause of the configured duration.
+Other errors are logged locally and reset the consecutive-timeout counter without
+starting a pause. Logging failures do not propagate to the application.
+
+The Elasticsearch client is synchronous, so a submission can block the application's
+event loop while it waits. The cooldown reduces repeated waits during timeout
+outages but does not make logging asynchronous. Cooldown state belongs to each
+middleware instance and is not shared between worker processes.
 
 
 ## How to Contribute

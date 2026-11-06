@@ -1,18 +1,36 @@
+import datetime
 import json
 import logging
+import math
 import time
 import traceback
 import uuid
-from datetime import datetime, timezone
+from enum import Enum
 
-from elasticsearch import Elasticsearch
+from elasticsearch import ConnectionTimeout, Elasticsearch
 from fastapi import Request
 from fastapi.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+logger = logging.getLogger(__name__)
 
-class LogLevelEnum:
-    level_mapping = {2: "Info", 3: "Warning", 4: "Warning", 5: "Error"}
+
+class LogLevel(str, Enum):
+    INFO = "Info"
+    WARNING = "Warning"
+    ERROR = "Error"
+
+    @classmethod
+    def from_http_status(cls, status: int) -> "LogLevel":
+        match int(status) // 100:
+            case 2:
+                return cls.INFO
+            case 3 | 4:
+                return cls.WARNING
+            case 5:
+                return cls.ERROR
+            case _:
+                raise ValueError(f"Unsupported HTTP status: {status}")
 
 
 class ElasticsearchLoggerMiddleware:
@@ -22,18 +40,36 @@ class ElasticsearchLoggerMiddleware:
 
         Args:
             app (ASGIApp): The FastAPI ASGI application.
-            config (dict): Configuration settings for Elasticsearch logging.
+            config (dict): Configuration settings for Elasticsearch logger.
                 {
                     'url': str,          # Elasticsearch server URL
                     'user': str,         # Elasticsearch API user
                     'password': str      # Elasticsearch API password
                     'index': str,        # Elasticsearch index name
-                    'environment': str,  # Environment identifier for logs
-                    'limit': bool,       # Limit Elasticsearch payload array and string lenght
-                    'debug': bool        # When True logs aren't sent to Elasticsearch
+                    'environment': str,  # Environment identifier for logs (default: 'Development')
+                    'limit': bool,       # Limit Elasticsearch payload array and string lenght (default: False)
+                    'debug': bool,       # When True logs aren't sent to Elasticsearch (default: False)
+                    'request_timeout': float,  # Submission timeout in seconds (default: 1)
+                    'timeout_max_retries': int,  # Consecutive timeouts before pause (default: 3)
+                    'timeout_wait_seconds': float,  # Pause duration in seconds (default: 60)
                 }
         """
         elastic_config = config
+        request_timeout = config.get("request_timeout", 1)
+        self.timeout_max_retries = config.get("timeout_max_retries", 3)
+        self.timeout_wait_seconds = config.get("timeout_wait_seconds", 60)
+        for name, value in (
+            ("request_timeout", request_timeout),
+            ("timeout_wait_seconds", self.timeout_wait_seconds),
+        ):
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be a finite positive number")
+        if type(self.timeout_max_retries) is not int or self.timeout_max_retries <= 0:
+            raise ValueError("timeout_max_retries must be a positive integer")
         elastic_user = config.get("user")
         elastic_password = config.get("password")
         basic_auth = (
@@ -42,13 +78,18 @@ class ElasticsearchLoggerMiddleware:
             else None
         )
         self.elasticsearch_client = Elasticsearch(
-            [elastic_config.get("url")], basic_auth=basic_auth
+            [elastic_config.get("url")],
+            basic_auth=basic_auth,
+            request_timeout=request_timeout,
+            max_retries=0,
         )
         self.index = elastic_config.get("index")
         self.limit = elastic_config.get("limit", False)
         self.environment = elastic_config.get("environment", "Development")
         self.debug = elastic_config.get("debug", False)
         self.app = app
+        self.timeout_current_try = 0
+        self.timeout_wait_until = None
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope.get("type") != "http" or self.debug:
@@ -85,7 +126,7 @@ class ElasticsearchLoggerMiddleware:
 
                             response_body = (
                                 json.dumps(response_body, ensure_ascii=False)
-                                if "body" in response.keys()
+                                if "body" in response
                                 else None
                             )
                             log_data["response"]["body"] = response_body
@@ -96,7 +137,7 @@ class ElasticsearchLoggerMiddleware:
                         ):
                             log_data["response"]["body"] = (
                                 str(response.get("body"))
-                                if "body" in response.keys()
+                                if "body" in response
                                 else None
                             )
 
@@ -111,9 +152,7 @@ class ElasticsearchLoggerMiddleware:
                         response["headers"] = response_headers_list
 
                         request_headers = (
-                            dict(request.headers)
-                            if "headers" in request.keys()
-                            else None
+                            dict(request.headers) if "headers" in request else None
                         )
                         request_query_parameters = (
                             dict(request.query_params)
@@ -123,14 +162,14 @@ class ElasticsearchLoggerMiddleware:
 
                         response_headers = (
                             dict(Headers(raw=response.get("headers")))
-                            if "headers" in response.keys()
+                            if "headers" in response
                             else None
                         )
 
                         log_data["status_code"] = response["status"]
-                        log_data["level"] = LogLevelEnum.level_mapping.get(
-                            int(str(response["status"])[0])
-                        )
+                        log_data["level"] = LogLevel.from_http_status(
+                            response["status"]
+                        ).value
                         log_data["request"]["headers"] = request_headers
                         log_data["request"]["query_parameters"] = (
                             request_query_parameters
@@ -144,17 +183,15 @@ class ElasticsearchLoggerMiddleware:
                                 if _route.operation_id
                                 else _route.name
                             )
-                except Exception as exc:
-                    logging.error(
-                        "Failed to intercept response: %s", exc, exc_info=True
-                    )
+                except Exception:
+                    logger.exception("Failed to intercept response")
                 finally:
                     await send(response)
 
             start_time = time.time()
 
             log_data = {
-                "@timestamp": datetime.now(tz=timezone.utc).strftime(
+                "@timestamp": datetime.now(tz=datetime.UTC).strftime(
                     "%Y-%m-%dT%H:%M:%S"
                 ),
                 "environment": self.environment,
@@ -199,8 +236,8 @@ class ElasticsearchLoggerMiddleware:
                             request_body = self.limit_string_length(request_body)
 
                     log_data["request"]["body"] = request_body
-                except Exception as exc:
-                    logging.error("Failed to intercept request: %s", exc, exc_info=True)
+                except Exception:
+                    logger.exception("Failed to intercept request")
                     message["body"] = body
 
                 return message
@@ -238,27 +275,49 @@ class ElasticsearchLoggerMiddleware:
 
                     # Send the error log to Elasticsearch
                     self.log_to_elasticsearch(log_data)
-                except Exception as logging_exc:
-                    logging.error(
-                        "Failed to log application exception: %s",
-                        logging_exc,
-                        exc_info=True,
-                    )
+                except Exception:
+                    logger.exception("Failed to log application exception")
 
                 # Reraise the exception to be handled by the FastAPI application
                 raise
-        except Exception as exc:
+        except Exception:
             if app_called:
                 raise
 
-            logging.error("Elasticsearch middleware failed: %s", exc, exc_info=True)
+            logger.exception("Elasticsearch middleware failed")
             await self.app(scope, receive, send)
 
     def log_to_elasticsearch(self, log_data) -> None:
+        """Drop logs during cooldown and probe Elasticsearch once it expires."""
+        if self.timeout_wait_until is not None:
+            if time.monotonic() < self.timeout_wait_until:
+                return
+            self.timeout_wait_until = None
+
         try:
             self.elasticsearch_client.index(index=self.index, body=log_data)
-        except Exception as e:
-            logging.error("Failed to log to Elasticsearch: {str(e)}")
+        except ConnectionTimeout as exc:
+            self.timeout_current_try = min(
+                self.timeout_current_try + 1, self.timeout_max_retries
+            )
+            logger.error(
+                "(%s/%s) Failed to log to Elasticsearch: %s",
+                self.timeout_current_try,
+                self.timeout_max_retries,
+                exc,
+            )
+            if self.timeout_current_try >= self.timeout_max_retries:
+                self.timeout_wait_until = time.monotonic() + self.timeout_wait_seconds
+                logger.warning(
+                    "Elasticsearch logging paused for %s seconds; logs during "
+                    "this interval will be discarded",
+                    self.timeout_wait_seconds,
+                )
+        except Exception:
+            self.timeout_current_try = 0
+            logger.exception("Failed to log to Elasticsearch")
+        else:
+            self.timeout_current_try = 0
 
     def limit_string_length(self, data, max_lines=50):
         if not self.limit:
